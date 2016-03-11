@@ -35,6 +35,14 @@
 #include <Poco/Path.h>
 #include <Poco/URI.h>
 #include <Poco/Exception.h>
+#include <Poco/Logger.h>
+#include <Poco/FormattingChannel.h>
+#include <Poco/PatternFormatter.h>
+#include <Poco/FileChannel.h>
+#include <Poco/ConsoleChannel.h>
+#include <Poco/SplitterChannel.h>
+#include <Poco/AutoPtr.h>
+
 
 // local includes
 #include "json/json.h"
@@ -43,6 +51,14 @@
 
 using namespace Poco::Net;
 using namespace Poco;
+using Poco::Logger;
+using Poco::FormattingChannel;
+using Poco::PatternFormatter;
+using Poco::FileChannel;
+using Poco::ConsoleChannel;
+using Poco::SplitterChannel;
+using Poco::AutoPtr;
+
 using namespace std;
 
 constexpr bool DebugOutput{ false };
@@ -52,6 +68,7 @@ struct event {
 	string bidRequestId;
 	string impId;
 	string type; 
+        Logger & logger;
 };
 
 // Shared queue for click events
@@ -85,7 +102,7 @@ Json::Value  readConf(const std::string confFile) {
 }
 
 // sends a win notice to the RTBkit
-void sendWin(string nurl, string bidRequestId, string impId, float winPrice) {
+void sendWin(Logger & logger, string nurl, string bidRequestId, string impId, float winPrice) {
 	URI uri(nurl);
 
 	const string host{ uri.getHost() };
@@ -126,10 +143,10 @@ void sendWin(string nurl, string bidRequestId, string impId, float winPrice) {
 
 	if (!myOStream.good()) {
 		cerr << "Problem sending win notice header..." << endl;
-		//		session.reset();
-		//continue;  // restart sending
 	}
 
+        logger.information("WIN\t" + bidRequestId);
+        
 	HTTPResponse winNoticeResponse{};
 	istream& rs = session.receiveResponse(winNoticeResponse);
 	//
@@ -140,7 +157,7 @@ void sendWin(string nurl, string bidRequestId, string impId, float winPrice) {
 	// 20% chance to get a click
 	if (rand100(generator) < 20) {
 		unique_lock<mutex> lck(mtx_clicks);
-		event ev {0.0, bidRequestId, impId, "CLICK"};
+		event ev {0.0, bidRequestId, impId, "CLICK", logger};
 		clicks.push_back(ev);
 	}
 
@@ -149,7 +166,7 @@ void sendWin(string nurl, string bidRequestId, string impId, float winPrice) {
 
 
 // sends a PostAuction event
-void sendPAEvent(string bidRequestId, string impId, string type) {
+void sendPAEvent(Logger & logger, string bidRequestId, string impId, string type) {
 	
 	// prepare session
 	string uri_string = configuration["winsite"].asString();
@@ -189,9 +206,11 @@ void sendPAEvent(string bidRequestId, string impId, string type) {
 
 	myOStream << reqBody;  // sends the body
 	if (!myOStream.good()) {
-		cerr << "Problem sending " << type << " event header..." << endl;
+		cerr << "Problem sending " << type << " event body..." << endl;
 	}
 
+        logger.information(type + "\t" + bidRequestId);
+        
 	HTTPResponse clickEventResponse{};
 	istream& rs = session.receiveResponse(clickEventResponse);
 	//
@@ -235,13 +254,13 @@ void sendClicks() {
 
 		for (auto & ev : local_clicks) {
 			//cerr << "Sending click on Id: " << ev.bidRequestId << endl;
-			sendPAEvent(ev.bidRequestId, ev.impId, "CLICK");
+			sendPAEvent(ev.logger, ev.bidRequestId, ev.impId, "CLICK");
 
 			// for every click, enter a conversion with some probability
 			// 10% chance to get a conversion
 			if (rand100(generator) < 0) {
 				unique_lock<mutex> lck(mtx_conversions);
-				event ev2 {0.0, ev.bidRequestId, ev.impId, "CONVERSION"};
+				event ev2 {0.0, ev.bidRequestId, ev.impId, "CONVERSION", ev.logger};
 				conversions.push_back(ev2);
 			}
 		}
@@ -277,7 +296,7 @@ void sendConversions() {
 		}
 		for (auto & ev : local_conversions) {
 			//cerr << "Sending conversion on Id: " << ev.bidRequestId << endl;
-			sendPAEvent(ev.bidRequestId, ev.impId, "CONVERSION");
+			sendPAEvent(ev.logger, ev.bidRequestId, ev.impId, "CONVERSION");
 		}
 	}
 
@@ -293,6 +312,30 @@ int main(int argc, char **argv)
 	// read configuration file. If no command line argument is given, use rtb-adex.json
 	string const conf_file{ (argc == 1 ? "rtb-adex.json" : argv[1]) };
 	configuration = Json::Value(readConf(conf_file));
+        
+        string lf { configuration["logfile"].asString() };
+        std::cerr << "Setting log file to " + lf << std::endl;
+
+        AutoPtr<FileChannel> pChannel(new FileChannel);
+
+        pChannel->setProperty("path", lf);
+        pChannel->setProperty("rotation", "1 M");
+        pChannel->setProperty("archive", "timestamp");
+        AutoPtr<ConsoleChannel> pcChannel(new ConsoleChannel);
+        AutoPtr<PatternFormatter> pPF(new PatternFormatter);
+        pPF->setProperty("pattern", "%Y-%m-%d %H:%M:%S %s: %t");
+        AutoPtr<FormattingChannel> pFC(new FormattingChannel(pPF, pChannel));
+        AutoPtr<SplitterChannel> pSplitter(new SplitterChannel);
+
+        // Uncomment the line below if you want log messages go to console in addition to file.
+        // pSplitter->addChannel(pcChannel);
+        pSplitter->addChannel(pFC);
+
+        Logger::root().setChannel(pSplitter);
+        Logger& logger = Logger::get("IDGeneratorLogger"); // inherits root channel
+
+        logger.information("******** NEW LOG ENTRY *********");
+
 
 	read_vals(configuration["aux"]["city"].asString(), city_map);
 	read_vals(configuration["aux"]["region"].asString(), region_map);
@@ -330,12 +373,12 @@ int main(int argc, char **argv)
 			int height = { br.imp[0].banner.h };
 			int width = { br.imp[0].banner.w };
 
-			if (width != 300){
-				continue;
-			}
-			else if ((height != 50) && (height != 250)) {
-				continue;
-			}
+//			if (width != 300){
+//				continue;
+//			}
+//			else if ((height != 50) && (height != 250)) {
+//				continue;
+//			}
 
 			// Now construct a JSON object out of the bid request object
 			Json::Value brJson{ br.toJson() };
@@ -385,6 +428,8 @@ int main(int argc, char **argv)
 						request.write(std::cout);
 						cout << "request body: " << reqBody << endl;
 					}
+                                        
+                                        logger.information("BR\t"+brJson["id"].asString() );
 
 					HTTPResponse res;
 					istream &is = session.receiveResponse(res);
@@ -417,6 +462,7 @@ int main(int argc, char **argv)
 
 						// debug printout
 						//cerr << bid << endl;
+                                                logger.information("BID\t"+bid["id"].asString() );
 
 						// 50% chance to get a win
 						if (rand100(generator) < 50) {
@@ -425,7 +471,7 @@ int main(int argc, char **argv)
 							string requestId = { bid["id"].asString() };
 							string impId = { bid["seatbid"][0]["bid"][0]["impid"].asString() };
 							float winPrice = { bid["seatbid"][0]["bid"][0]["price"].asFloat() * static_cast<float>(0.76) };
-							sendWin(nurl, requestId, impId, winPrice);
+							sendWin(logger, nurl, requestId, impId, winPrice);
 						}
 
 					}

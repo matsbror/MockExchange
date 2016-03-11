@@ -1,4 +1,5 @@
 {
+   "logfile" : "mockexchange.log",
   "site": "http://rtbtest.rtman.net",
   "port": 12339,
   "winsite": "http://rtbtest.rtman.net",
