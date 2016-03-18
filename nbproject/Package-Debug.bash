@@ -6,7 +6,7 @@
 
 # Macros
 TOP=`pwd`
-CND_PLATFORM=Clang-3.6-Linux
+CND_PLATFORM=Clang_3.6-Linux
 CND_CONF=Debug
 CND_DISTDIR=dist
 CND_BUILDDIR=build

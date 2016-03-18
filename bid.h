@@ -79,11 +79,6 @@ struct DeviceObject {
 	int dnt;		// Do not track
 	std::string ua;		// User agent 
 	std::string ip;		// ip address
-
-	DeviceObject(int dnt, std::string ua, std::string ip)
-		: dnt{ dnt }, ua{ ua }, ip{ ip }
-	{
-	}
 };
 
 class UserObject {
@@ -96,8 +91,10 @@ struct BidRequest {
 	std::string id;				// bid request id
 	std::vector<ImpressionObject> imp;		// array of impression objects
 	SiteObject site;
-	AppObject *app;
-	DeviceObject *device;
+	AppObject app;
+	DeviceObject device;
+        std::vector<std::string> badv;
+        std::vector<std::string> bcat;
 	UserObject user;
 	int at;					// auction type 1 = first price auction, 2 = second price auction
 	const std::chrono::milliseconds tmax;				// max time bidder has to reply (in ms)
@@ -111,18 +108,15 @@ struct BidRequest {
 
 							// make an empty request
 	BidRequest()
-		: id{}, imp{}, tmax{}, app{ nullptr }, device{ nullptr }, at{}
+		: id{}, imp{}, tmax{}, app{  }, device{  }, at{}
 	{
 	}
 	BidRequest(std::chrono::milliseconds ttmax = std::chrono::milliseconds(100))
-		: id{}, imp{}, tmax{ ttmax }, app{ nullptr }, device{ nullptr }, at{}
+		: id{}, imp{}, tmax{ ttmax }, app{  }, device{  }, at{}
 	{
 	}
 
 	~BidRequest() {
-		if (device != nullptr) {
-			delete device;
-		}
 	}
 
 	// Build a Json bid request object out of the C++ object
@@ -141,11 +135,15 @@ struct BidRequest {
 			br_root["imp"].append(imp_inst);
 		}
 		Json::Value dev_inst{};
-		dev_inst["dnt"] = device->dnt;
-		dev_inst["ua"] = device->ua;
-		dev_inst["ip"] = device->ip;
+		dev_inst["dnt"] = device.dnt;
+		dev_inst["ua"] = device.ua;
+		dev_inst["ip"] = device.ip;
 		br_root["device"] = dev_inst;
-
+                for (auto bc : bcat)
+                    br_root["bcat"].append(Json::Value(bc));
+                for (auto bv : badv)
+                    br_root["badv"].append(Json::Value(bv));
+                
 		return br_root;
 	}
 
@@ -221,7 +219,7 @@ std::istream& operator>>(std::istream &bids, BidRequest& br)
 	// Let's now construct a BidRequest object
 	br.id = brid;
 	br.imp.push_back(impObj);
-	br.device = new DeviceObject{ 0, ua, ipaddr };
+	br.device = { 0, ua, ipaddr };
 	br.bidding_price = stof(bidding_price) / 10;
 	br.paying_price = stof(paying_price) / 10;
 

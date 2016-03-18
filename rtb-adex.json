@@ -1,7 +1,7 @@
 {
    "logfile" : "mockexchange.log",
   "site": "http://rtbtest.rtman.net",
-  "port": 12339,
+  "port": 10339,
   "winsite": "http://rtbtest.rtman.net",
   "winport": 12340,
   "eventsport": 12341,

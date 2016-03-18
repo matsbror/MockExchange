@@ -380,6 +380,9 @@ int main(int argc, char **argv)
 //				continue;
 //			}
 
+                        // set blocked categories 
+                        br.bcat.push_back("IAB22");
+                        
 			// Now construct a JSON object out of the bid request object
 			Json::Value brJson{ br.toJson() };
 			latestBr2 = latestBr;
