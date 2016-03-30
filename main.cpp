@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <thread>
 #include <cassert>
+#include <unistd.h>
 
 // Poco lib includes
 #include <Poco/Net/HTTPClientSession.h>
@@ -240,6 +241,8 @@ void sendClicks() {
 		}
 
 		assert(clicks.empty());
+                
+                sleep(5);  // sleep 5 seconds to make sure the win comes before the click
 
 		if (DebugOutput){
 			if (!local_clicks.empty()) {
@@ -382,6 +385,8 @@ int main(int argc, char **argv)
 
                         // set blocked categories 
                         br.bcat.push_back("IAB22");
+                        // set fake operator
+                        br.ext.carrierName = "personal";
                         
 			// Now construct a JSON object out of the bid request object
 			Json::Value brJson{ br.toJson() };

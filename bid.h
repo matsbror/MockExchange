@@ -81,6 +81,15 @@ struct DeviceObject {
 	std::string ip;		// ip address
 };
 
+// Extra information used by Smaato (for instance)
+struct ExtObject {
+    std::string carrierName;    // e.g. personal
+    int coppa;                  // 0 or 1
+    int operaminibrowser;       // 0 or 1 
+    ExtObject() : carrierName("personal"), coppa(0), operaminibrowser(0) {}
+    
+};
+
 class UserObject {
 
 };
@@ -96,6 +105,8 @@ struct BidRequest {
         std::vector<std::string> badv;
         std::vector<std::string> bcat;
 	UserObject user;
+        ExtObject ext;
+        
 	int at;					// auction type 1 = first price auction, 2 = second price auction
 	const std::chrono::milliseconds tmax;				// max time bidder has to reply (in ms)
 	std::vector<std::string> wseat;			// array of buyes seats allowed to bid
@@ -108,7 +119,7 @@ struct BidRequest {
 
 							// make an empty request
 	BidRequest()
-		: id{}, imp{}, tmax{}, app{  }, device{  }, at{}
+		: id{}, imp{}, tmax{}, app{  }, device{  }, at{}, ext{}
 	{
 	}
 	BidRequest(std::chrono::milliseconds ttmax = std::chrono::milliseconds(100))
@@ -143,6 +154,13 @@ struct BidRequest {
                     br_root["bcat"].append(Json::Value(bc));
                 for (auto bv : badv)
                     br_root["badv"].append(Json::Value(bv));
+                
+                // add the ext object to the Json field
+                Json::Value extVal {};
+                extVal["carriername"] = ext.carrierName;
+                extVal["coppa"] = ext.coppa;
+                extVal["operaminibrowser"] = ext.operaminibrowser;
+                br_root["ext"] = extVal;
                 
 		return br_root;
 	}
