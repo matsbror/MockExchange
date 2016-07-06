@@ -32,6 +32,7 @@
 #include <Poco/Net/HTTPRequest.h>
 #include <Poco/Net/HTTPResponse.h>
 #include <Poco/Net/IPAddress.h>
+#include "Poco/Net/NetException.h"
 #include <Poco/StreamCopier.h>
 #include <Poco/Path.h>
 #include <Poco/URI.h>
@@ -376,12 +377,12 @@ int main(int argc, char **argv)
 			int height = { br.imp[0].banner.h };
 			int width = { br.imp[0].banner.w };
 
-//			if (width != 300){
-//				continue;
-//			}
-//			else if ((height != 50) && (height != 250)) {
-//				continue;
-//			}
+			if (width != 300){
+				continue;
+			}
+			else if ((height != 50) && (height != 250)) {
+				continue;
+			}
 
                         // set blocked categories 
                         br.bcat.push_back("IAB22");
@@ -496,7 +497,31 @@ int main(int argc, char **argv)
 					//cout << nrq << ": It took " << rt.count() << " ms to get bid back" << endl;
 					accumulated_time += rt;
 					++nrq;
+                                        failed = false;
 				} // end of try
+
+                                catch (const Poco::Net::NoMessageException &noMsgEx ) {
+                                    std::cerr << "No message received. Restart connection..." << std::endl;
+                                    session.reset();
+                                    continue;
+                                }
+
+                                catch (const Poco::Net::ConnectionResetException &netEx) {
+                                    std::string errstr = {"Socket Error : " + netEx.displayText()};
+                                    std::cerr << errstr << std::endl;
+                                    break;
+                                }
+                                catch (const Poco::Net::ConnectionRefusedException &netEx) {
+
+                                    std::string errstr = {"Socket Error : " + netEx.displayText()};
+                                    std::cerr << errstr << std::endl;
+                                    break;
+                                }
+                                catch (const Poco::Net::ConnectionAbortedException &netEx) {
+                                    std::string errstr = {"Socket Error : " + netEx.displayText()};
+                                    std::cerr << "Msg forward failed: " << errstr << std::endl;
+                                    break;
+                                }
 
 
 				catch (const Exception &ex) {
