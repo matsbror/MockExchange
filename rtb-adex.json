@@ -2,9 +2,9 @@
    "logfile" : "mockexchange.log",
   "site": "http://rtbtest.rtman.net",
   "port": 10339,
-  "winsite": "http://rtbtest.rtman.net",
-  "winport": 12340,
-  "eventsport": 12341,
+  "wnstyle" : "rtbkit",  
+  "winport": 10340,
+  "eventsport": 10341,
     "bids": "imp.20131019.txt",
     "tmax": 300,
   "aux": {

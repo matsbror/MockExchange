@@ -114,38 +114,79 @@ void sendWin(Logger & logger, string nurl, string bidRequestId, string impId, fl
 	vector<string> pathSegments{};
 	uri.getPathSegments(pathSegments);
 
-	HTTPClientSession session(host, port);
+        HTTPClientSession session(host, port);
 
-	std::string winNotice{ "" };
+        if (configuration["wnstyle"].asString() == "smaato") {
+            
 
-	// build the winNotice based on the nurl substitution macros
-	for (auto ps : pathSegments) {
-		if (ps == "${AUCTION_ID}") {
+            std::string winNotice{ "" };
+
+            // build the winNotice based on the nurl substitution macros
+            for (auto ps : pathSegments) {
+                    if (ps == "${AUCTION_ID}") {
 			winNotice += "/" + bidRequestId;
-		}
-		else if (ps == "${AUCTION_IMP_ID}") {
+                    }
+                    else if (ps == "${AUCTION_IMP_ID}") {
 			winNotice += "/" + impId;
-		}
-		else if (ps == "${AUCTION_PRICE}") {
+                    }
+                    else if (ps == "${AUCTION_PRICE}") {
 			winNotice += "/" + to_string(winPrice*0.9765432); // arbitrary scaling
-		}
-		else {
+                    }
+                    else {
 			winNotice += "/" + ps;
-		}
+                    }
+            }
+            
+            // debug
+            //cerr << "winNotice: " << winNotice << endl;
 
-	}
+            HTTPRequest request(HTTPRequest::HTTP_GET, winNotice);
+            //	request.setKeepAlive(true);
 
-	// debug
-	//cerr << "winNotice: " << winNotice << endl;
+            std::ostream& myOStream = session.sendRequest(request); // sends request, returns open stream
 
-	HTTPRequest request(HTTPRequest::HTTP_GET, winNotice);
-	//	request.setKeepAlive(true);
+            if (!myOStream.good()) {
+		cerr << "Problem sending win notice header..." << endl;
+            }
 
-	std::ostream& myOStream = session.sendRequest(request); // sends request, returns open stream
+	} else {
+            // It's rtbkit style, send the win notice as POST JSON
+            chrono::system_clock::time_point tp = chrono::system_clock::now();
+            chrono::system_clock::duration dtn = tp.time_since_epoch();
+            float ts = static_cast<float>(dtn.count() * chrono::system_clock::period::num) / chrono::system_clock::period::den;
+
+            Json::Value wn;
+            wn["timestamp"] = ts;
+            wn["bidRequestId"] = bidRequestId;
+            wn["impid"] = impId;
+            wn["price"] = to_string(winPrice*0.9765432);
+
+            //stringstream reqStream{};
+            //reqStream << wn;
+            string reqBody{ wn.asString() };
+
+            HTTPRequest request(HTTPRequest::HTTP_POST, "/smaato/");
+            //request.setKeepAlive(true);
+
+            request.setContentType("application/json");
+
+            request.setContentLength(reqBody.length());
+
+            // debug
+            //cerr << "winNotice: " << wn << endl;
+
+            std::ostream& myOStream = session.sendRequest(request); // sends request, returns open stream
 
 	if (!myOStream.good()) {
-		cerr << "Problem sending win notice header..." << endl;
+		cerr << "Problem sending " << type << " event header..." << endl;
 	}
+
+	myOStream << reqBody;  // sends the body
+	if (!myOStream.good()) {
+		cerr << "Problem sending " << type << " event body..." << endl;
+	}
+
+        }
 
         logger.information("WIN\t" + bidRequestId);
         
